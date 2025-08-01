@@ -1,53 +1,47 @@
 import streamlit as st
 import pandas as pd
+import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score
-import plotly.express as px
 
-# Title
-st.title("🎓 Student Performance Predictor")
+st.title("🎓 Predict Student Performance")
 
-# Load dataset
+# Load data
 df = pd.read_csv("student_mat.csv")
-st.subheader("📄 Dataset Preview")
-st.dataframe(df.head())
+st.write("### Dataset Sample", df.head())
 
-# Basic stats
-st.subheader("📊 Feature Distribution")
-numeric_cols = df.select_dtypes(include='number').columns
-selected_col = st.selectbox("Select column to visualize", numeric_cols)
-fig = px.histogram(df, x=selected_col)
-st.plotly_chart(fig)
+# Visualize
+st.write("### Study Time vs Final Grade")
+sns_plot = sns.boxplot(x="study_time", y="G3", data=df)
+st.pyplot(sns_plot.figure)
 
-# Preprocessing
-df['pass'] = df['G3'].apply(lambda x: 1 if x >= 10 else 0)
-X = df.drop(['G3', 'pass'], axis=1)
-X = pd.get_dummies(X, drop_first=True)
-y = df['pass']
+# Prepare data
+X = df[["study_time", "failures", "absences", "G1", "G2"]]
+y = df["passed"].map({"yes": 1, "no": 0})
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
 # Train model
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 model = RandomForestClassifier()
 model.fit(X_train, y_train)
 
-# Evaluation
+# Evaluate
 y_pred = model.predict(X_test)
-st.subheader("📈 Model Performance")
-st.text(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
-st.text("Classification Report:")
-st.text(classification_report(y_test, y_pred))
+st.write("### Accuracy:", accuracy_score(y_test, y_pred))
 
-# Prediction
-st.subheader("🔮 Predict Student Outcome")
-input_data = {}
-for col in X.columns:
-    if df[col].dtype == 'int64':
-        input_data[col] = st.number_input(f"{col}", value=int(df[col].mean()))
-    else:
-        input_data[col] = st.selectbox(f"{col}", options=df[col].unique())
+# Predict user input
+st.write("### Try it Yourself:")
+study_time = st.slider("Study Time", 1, 4, 2)
+failures = st.slider("Failures", 0, 4, 0)
+absences = st.slider("Absences", 0, 30, 5)
+G1 = st.slider("G1 Grade", 0, 20, 10)
+G2 = st.slider("G2 Grade", 0, 20, 10)
 
-input_df = pd.DataFrame([input_data])
-prediction = model.predict(input_df)[0]
-result = "✅ Pass" if prediction == 1 else "❌ Fail"
-st.success(f"Prediction: {result}")
+input_data = pd.DataFrame([[study_time, failures, absences, G1, G2]], columns=X.columns)
+prediction = model.predict(input_data)
+
+if prediction[0]:
+    st.success("🎉 The student is likely to PASS.")
+else:
+    st.error("⚠️ The student is likely to FAIL.")
